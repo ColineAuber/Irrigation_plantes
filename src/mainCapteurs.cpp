@@ -77,8 +77,8 @@ const char* mqttH = "colineauber@yahoo.fr/capteur/humidite";
 const char* mqttT = "colineauber@yahoo.fr/capteur/temperature";
 const char* mqttA = "colineauber@yahoo.fr/alerte";
 
-const int dry = 595; // value for dry sensor
-const int wet = 239; // value for wet sensor
+const int dry = 600; // value for dry sensor
+const int wet = 370; // value for wet sensor
 
 boolean alerte = false;
 
@@ -169,38 +169,16 @@ void loop() {
 
 int sensorVal = analogRead(A0);
 
-/*
-
 int percentageHumididy = map(sensorVal, wet, dry, 100, 0); 
 Serial.println(sensorVal);
 Serial.print(percentageHumididy);
 Serial.println("%");
 
-*/
-
 const float temperature = dht.readTemperature();
 Serial.println("Temperature = " + String(dht.readTemperature())+" °C");
 // TODO : temporaire, à enlever quand on aura le bon capteur
-int percentageHumididy = dht.readHumidity();
-Serial.println("Humidite = " + String(percentageHumididy)+" %");
-
-/*
-if(percentageHumididy <= 30 && alerte == false){
-  (relais_pompe, HIGH);
-  delay(5000); //5s
-  digitalWrite(relais_pompe, LOW);
-}
-*/
-
-if(percentageHumididy <= 15 && alerte == true){
-  String message = "Alerte! La temperature est de: " + String(temperature) + "°C l'arrosage automatique a été annulé mais l'humidité est trop basse, elle est actuellement à: " + String(percentageHumididy) + "%";
-  client.publish(mqttA, message.c_str());
-}
-
-if(percentageHumididy > 70){
-  String message = "Alerte! Le taux d'humidité est trop élevé, il est actuellement à : " + String(percentageHumididy) + "%";
-  client.publish(mqttA, message.c_str());
-}
+//int percentageHumididy = dht.readHumidity();
+Serial.println("Humidite = " + String(dht.readHumidity())+" %");
 
 if(temperature > 32 || temperature <= 0){
   alerte = true;
@@ -214,6 +192,7 @@ if(temperature < 32 || temperature > 0){
 client.publish(mqttTopic, "Hello, MQTT!");
 client.publish(mqttH, String(percentageHumididy).c_str());
 client.publish(mqttT, String(temperature).c_str());
-client.publish(mqttA, String(alerte).c_str());
+
+delay(3000);
 
 }
