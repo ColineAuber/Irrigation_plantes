@@ -54,45 +54,41 @@ int myFunction(int x, int y) {
 }
 
 **/
-
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <PubSubClient.h>  // Ajoutez cette ligne pour la gestion MQTT
+#include <PubSubClient.h>  // Bibliothèque pour la gestion MQTT
 
 #include <DHT.h>
 #define DHTPIN D4
-// Definit le type de capteur utilise
+// Définition du type de capteur utilisé
 #define DHTTYPE DHT11
 
-const char* ssid = "Pixel Coline";           // Remplacez par le nom de votre réseau WiFi
-const char* password = "Raclette"; // Remplacez par le mot de passe de votre réseau WiFi
-const char* mqttServer = "maqiatto.com"; // Remplacez par l'adresse IP ou le nom du broker MQTT
-const int mqttPort = 1883;  // Port MQTT par défaut
+const char* ssid = "Pixel Coline";           // Nom du réseau WiFi
+const char* password = "Raclette";           // Mot de passe du réseau WiFi
+const char* mqttServer = "maqiatto.com";     // Adresse IP ou nom du broker MQTT
+const int mqttPort = 1883;                   // Port MQTT par défaut
 
-const char* mqttUsername = "colineauber@yahoo.fr";  // Si nécessaire, sinon commentez cette ligne
-const char* mqttPassword = "plante";  // Si nécessaire, sinon commentez cette ligne
+const char* mqttUsername = "colineauber@yahoo.fr";  // Nom d'utilisateur MQTT
+const char* mqttPassword = "plante";                 // Mot de passe MQTT
 
-const char* mqttTopic = "colineauber@yahoo.fr/plante";  // Remplacez par le topic MQTT que vous souhaitez utiliser
-const char* mqttH = "colineauber@yahoo.fr/capteur/humidite";
-const char* mqttT = "colineauber@yahoo.fr/capteur/temperature";
-const char* mqttA = "colineauber@yahoo.fr/alerte";
+const char* mqttTopic = "colineauber@yahoo.fr/plante";   // Topic MQTT pour les données des plantes
+const char* mqttH = "colineauber@yahoo.fr/capteur/humidite"; // Topic MQTT pour l'humidité
+const char* mqttT = "colineauber@yahoo.fr/capteur/temperature"; // Topic MQTT pour la température
 
-const int dry = 600; // value for dry sensor
-const int wet = 370; // value for wet sensor
+const int dry = 750; // Valeur pour le capteur sec
+const int wet = 300; // Valeur pour le capteur mouillé
 
-boolean alerte = false;
+boolean alerte = false; // Variable pour indiquer une alerte de température
 
-DHT dht(DHTPIN, DHTTYPE); //température
+DHT dht(DHTPIN, DHTTYPE); // Instance du capteur de température et d'humidité
 
-//const int relais_pompe = D5; // // le relais est connecté à la broche 2 de la carte Adruino
+WiFiClient espClient; // Client WiFi
+PubSubClient client(espClient); // Client MQTT
 
-WiFiClient espClient;
-PubSubClient client(espClient);
+int ledPin = 5; // Broche pour la LED
 
-int ledPin = 5;
-
+// Fonction pour le traitement des messages MQTT entrants
 void callback(char* topic, byte* payload, unsigned int length) {
-  // Traitement des messages MQTT entrants
   Serial.print("Message reçu sur le topic: ");
   Serial.println(topic);
 
@@ -103,8 +99,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 }
 
+// Fonction pour reconnecter au broker MQTT
 void reconnect() {
-  // Fonction de reconnexion au broker MQTT
   while (!client.connected()) {
     Serial.print("Tentative de connexion MQTT...");
     
@@ -119,8 +115,6 @@ void reconnect() {
     }
   }
 }
-
-
 
 void setup() {
   Serial.begin(115200);
@@ -137,8 +131,7 @@ void setup() {
   Serial.println();
   Serial.print("Connecter");
 
-
-
+  // Attente de connexion au réseau WiFi
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -151,48 +144,48 @@ void setup() {
   Serial.print("NodeMCU IP Address : ");
   Serial.println(WiFi.localIP());
 
+  // Configuration du client MQTT
   client.setServer(mqttServer, mqttPort);
-  client.setCallback(callback);  // Définir la fonction de rappel pour le traitement des messages entrants
+  client.setCallback(callback);
 
+  // Initialisation du capteur DHT
   dht.begin();
 
   //pinMode(relais_pompe, OUTPUT);
 }
 
 void loop() {
-  //digitalWrite(relais_pompe, HIGH);
-
+  // Vérification de la connexion au broker MQTT
   if (!client.connected()) {
     reconnect();
   }
   client.loop();
 
-int sensorVal = analogRead(A0);
+  // Lecture de la valeur du capteur d'humidité
+  int sensorVal = analogRead(A0);
+  int percentageHumididy = map(sensorVal, wet, dry, 100, 0); 
+  Serial.println(sensorVal);
+  Serial.print(percentageHumididy);
+  Serial.println("%");
 
-int percentageHumididy = map(sensorVal, wet, dry, 100, 0); 
-Serial.println(sensorVal);
-Serial.print(percentageHumididy);
-Serial.println("%");
+  // Lecture de la température
+  const float temperature = dht.readTemperature();
+  Serial.println("Temperature = " + String(dht.readTemperature())+" °C");
+  Serial.println("Humidite = " + String(dht.readHumidity())+" %");
 
-const float temperature = dht.readTemperature();
-Serial.println("Temperature = " + String(dht.readTemperature())+" °C");
-// TODO : temporaire, à enlever quand on aura le bon capteur
-//int percentageHumididy = dht.readHumidity();
-Serial.println("Humidite = " + String(dht.readHumidity())+" %");
+  // Vérification des seuils de température pour l'alerte
+  if(temperature > 32 || temperature <= 0){
+    alerte = true;
+  }
 
-if(temperature > 32 || temperature <= 0){
-  alerte = true;
-}
+  if(temperature < 32 || temperature > 0){
+    alerte = false;
+  }
 
-if(temperature < 32 || temperature > 0){
-  alerte = false;
-}
+  // Envoi des données au broker MQTT
+  client.publish(mqttTopic, "Hello, MQTT!");
+  client.publish(mqttH, String(percentageHumididy).c_str());
+  client.publish(mqttT, String(temperature).c_str());
 
-// Envoyer une donnée au broker MQTT
-client.publish(mqttTopic, "Hello, MQTT!");
-client.publish(mqttH, String(percentageHumididy).c_str());
-client.publish(mqttT, String(temperature).c_str());
-
-delay(3000);
-
+  delay(3000);
 }
